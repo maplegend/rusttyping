@@ -1,0 +1,16 @@
+#pressed {
+    color: green;
+}
+
+#not_pressed {
+    color: white;
+}
+
+#wrong_pressed {
+    color: red;
+}
+
+#items {
+    background: transparent;
+}
+
