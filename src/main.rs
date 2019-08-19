@@ -18,6 +18,7 @@ use crate::styled_text::*;
 mod styled_text_box;
 use styled_text_box::STextWidget;
 use crate::Action::KeyPressed;
+use std::borrow::BorrowMut;
 
 #[derive(Debug, Copy, Clone)]
 enum Action {
@@ -54,6 +55,7 @@ pub struct MainViewState {
     cursor: Cell<usize>,
     text: RefCell<Vec<KeyLetter>>,
     action: Cell<Option<Action>>,
+    errors: Cell<usize>,
 }
 
 impl Default for MainViewState {
@@ -64,19 +66,23 @@ impl Default for MainViewState {
             cursor: Cell::new(0),
             text: RefCell::new(vec![]),
             action: Cell::new(None),
+            errors: Cell::new(0)
         };
-        st.text.replace(st.text_gen.generate(&vec!['1'], 5).join(" ")
-            .chars().map(|c| KeyLetter::new(c, Pressed::NotPressed)).collect());
+        st.generate_text();
         st
     }
 }
 
 impl MainViewState {
+    fn generate_text(&self){
+        self.text.replace(self.text_gen.generate(&vec!['1'], 5).join(" ")
+            .chars().map(|c| KeyLetter::new(c, Pressed::NotPressed)).collect());
+    }
     fn action(&self, action: impl Into<Option<Action>>) {
         self.action.set(action.into());
     }
     fn get_styled_text(&self) -> Vec<Letter>{
-        self.text.clone().into_inner().iter().map(|kl| Letter::new(kl.character, (match kl.pressed {
+        self.text.clone().into_inner().iter().map(|kl| Letter::new(if kl.character == ' ' {'_'} else {kl.character}, (match kl.pressed {
             Pressed::Pressed => "pressed",
             Pressed::NotPressed => "not_pressed",
             Pressed::WrongPressed => "wrong_pressed"
@@ -89,23 +95,40 @@ impl State for MainViewState {
         if let Some(action) = self.action.get() {
             match action {
                 Action::KeyPressed(key) => {
-                    if let Some(button_count_text) = context.widget().try_get_mut::<Text>() {
-                        button_count_text.0 =
-                            String16::from(format!("Key pressed: {}", key));
+                    //if let Some(button_count_text) = context.widget().try_get_mut::<Text>() {
+                        context
+                            .child_by_id("speed")
+                            .unwrap()
+                            .get_mut::<Text>()
+                            .0 = String16::from(format!("Speed: {} cpm", 10));
+
+                        context
+                            .child_by_id("errors")
+                            .unwrap()
+                            .get_mut::<Text>()
+                            .0 = String16::from(format!("Speed: {} cpm", self.errors.get()));
 
                         let len = self.text.borrow().len();
                         //let text = self.text.borrow();
                         let cursor = self.cursor.get();
-                        let actual_char = self.text.clone().into_inner().clone().get(cursor).unwrap_or(&KeyLetter::default()).character.clone();
+                        let text = self.text.clone().into_inner().clone();
+                        let actual_char = text.get(cursor).unwrap_or(&KeyLetter::default()).character.clone();
                         let correct = actual_char == key;
                         println!("correct1");
                         //self.text.borrow_mut().remove(0);
                         //context.child_by_id("items").unwrap().set(Count(len - 1));
                         //if let Some(key) = self.text.into_inner().get(cursor){
-                        self.text.borrow_mut()[cursor] = KeyLetter::new(actual_char, if correct { Pressed::Pressed} else {Pressed::WrongPressed});
+                        if cursor >= text.len()-1{
+                            self.generate_text();
+                            self.cursor.set(0);
+                        } else{
+                            self.text.borrow_mut()[cursor] = KeyLetter::new(actual_char, if correct { Pressed::Pressed} else {Pressed::WrongPressed});
 
-                        if correct {
-                            self.cursor.set(cursor + 1);
+                            if correct {
+                                self.cursor.set(cursor + 1);
+                            } else {
+                                self.errors.set(self.errors.get() + 1);
+                            }
                         }
 
                         context.child_by_id("items").unwrap().set(StyledText(self.get_styled_text()));
@@ -113,7 +136,7 @@ impl State for MainViewState {
                         //}
 
                     }
-                }
+                //}
             }
 
             self.action.set(None);
@@ -130,7 +153,6 @@ fn create_header(context: &mut BuildContext, text: &str) -> Entity {
 
 widget!(
     MainView<MainViewState>: KeyDownHandler {
-        count_text: Text,
         text: StyledText
     }
 );
@@ -140,7 +162,7 @@ impl Template for MainView {
         let state = self.clone_state();
         let text_state = self.clone_state();
         let text_len = text_state.text.borrow().len();
-        self.name("MainView").text(state.get_styled_text()).count_text("123").child(
+        self.name("MainView").text(state.get_styled_text()).child(
             Grid::create()
                 .margin(8.0)
                 .columns(
@@ -158,8 +180,17 @@ impl Template for MainView {
                         .child(create_header(context, "Text"))
                         .child(
                             TextBlock::create()
-                                .selector(SelectorValue::new().class("body"))
-                                .text(id)
+                                .selector(SelectorValue::new().id("speed"))
+                                .text("Speed: 0 cpm")
+                                .margin((0.0, 8.0, 0.0, 0.0))
+                                .attach(GridColumn(2))
+                                .attach(GridRow(1))
+                                .build(context),
+                        )
+                        .child(
+                            TextBlock::create()
+                                .selector(SelectorValue::new().id("errors"))
+                                .text("Errors: 0 cpm")
                                 .margin((0.0, 8.0, 0.0, 0.0))
                                 .attach(GridColumn(2))
                                 .attach(GridRow(1))
@@ -168,10 +199,8 @@ impl Template for MainView {
                         .child(
                             STextWidget::create()
                                 .selector(Selector::from("items-widget").id("items"))
-                                .padding((4.0, 4.0, 4.0, 2.0))
-                                .margin((0.0, 8.0, 0.0, 8.0))
+                                //.padding((4.0, 4.0, 4.0, 2.0))
                                 .border_thickness(BorderThickness::from(0.0))
-                                .orientation(OrientationValue::Horizontal)
                                 .styled_text(id)
                                 .build(context),
                         )
@@ -200,7 +229,6 @@ fn main() {
                         .extension_css(include_str!("../res/style.css"))
                         .build(),
                 )
-
                 .resizeable(true)
                 .child(MainView::create().build(ctx))
                 .build(ctx)

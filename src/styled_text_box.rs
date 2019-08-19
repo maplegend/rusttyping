@@ -19,17 +19,69 @@ impl State for STextWidgetState {
             context.clear_children_of(items_panel);
 
             let text = context.widget().clone_or_default::<StyledText>().0;
+            let bounds = context.widget().get::<orbtk::api::Bounds>().0;
+
+            let width = 600.0;
+
             let mut build_context = context.build_context();
 
+            let mut current_stack = Stack::create()
+                .selector(SelectorValue::default().clone().id("items_row")).height(20.0)
+                .orientation(OrientationValue::Horizontal).build(&mut build_context);
+            build_context.append_child(items_panel, current_stack);
+
+            let words = text.iter()
+                .fold(vec![vec![]], |mut rs, l| {
+                    let len = rs.len();
+                    rs[len-1].push(l);
+                    if l.character == '_' {rs.push(vec![])};
+                    rs
+                });
+            println!("words len {}", words.len());
+            let mut cw = 0.0;
+            for word in words{
+                cw += word.len() as f64 * 25.0;
+                if cw >= width {
+                    current_stack = Stack::create()
+                        .selector(SelectorValue::default().clone().id("items_row")).height(20.0)
+                        .orientation(OrientationValue::Horizontal).build(&mut build_context);
+                    build_context.append_child(items_panel, current_stack);
+                    cw = 0.0;
+                }
+                for i in 0..word.len() {
+                    let letter = &word[i];
+                    let character = TextBlock::create()
+                        .selector(Selector::from("item").id(&letter.id))
+                        .text(letter.character.to_string())
+                        .font_size(20.0);
+                        //.build(&mut build_context);
+                    //println!("width {}", character.context.widget().get::<orbtk::api::Bounds>().0.width);
+                    let character = character.build(&mut build_context);
+                    build_context.append_child(current_stack, character);
+                }
+            }
+            /*
+            let mut cw = 0.0;
             for i in 0..text.len() {
+                cw += 20.0;
+                if cw >= width{
+                    println!("skip line {} {}", cw, i);
+                    current_stack = Stack::create()
+                        .selector(SelectorValue::default().clone().id("items_row")).height(20.0)
+                        .orientation(OrientationValue::Horizontal).build(&mut build_context);
+                    build_context.append_child(items_panel, current_stack);
+                    cw = 0.0;
+                }
                 let letter = &text[i];
                 let character = TextBlock::create()
                     .selector(Selector::from("item").id(&letter.id))
                     .text(letter.character.to_string())
                     .font_size(20.0)
                     .build(&mut build_context);
-                build_context.append_child(items_panel, character);
+
+                build_context.append_child(current_stack, character);
             }
+            */
         }
     }
 }
@@ -53,9 +105,6 @@ widget!(
 
         /// Sets or shares the padding property.
         padding: Padding,
-
-        /// Sets or shares the orientation property.
-        orientation: Orientation,
 
         styled_text: StyledText,
 
@@ -83,7 +132,7 @@ impl Template for STextWidget {
                     .child(
                         Stack::create()
                             .selector(SelectorValue::default().clone().id("items_panel"))
-                            .orientation(id)
+                            .orientation(OrientationValue::Vertical)
                             .build(context),
                     )
                     .build(context),

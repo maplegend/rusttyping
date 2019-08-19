@@ -23,7 +23,6 @@ impl TextGenerator{
             let word = rng.gen_range(0, self.words.len());
             res.push(self.words[word].clone());
         }
-        res.push(" ".to_string());
         res
     }
 }
