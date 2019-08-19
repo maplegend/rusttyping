@@ -1,5 +1,6 @@
 extern crate orbtk;
 use std::cell::{Cell, RefCell};
+use std::time::{Duration, Instant};
 
 use orbtk::{
     prelude::*,
@@ -25,7 +26,7 @@ enum Action {
     KeyPressed(char)
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 enum Pressed {
     Pressed,
     NotPressed,
@@ -56,6 +57,7 @@ pub struct MainViewState {
     text: RefCell<Vec<KeyLetter>>,
     action: Cell<Option<Action>>,
     errors: Cell<usize>,
+    start_time: Cell<Instant>,
 }
 
 impl Default for MainViewState {
@@ -66,7 +68,8 @@ impl Default for MainViewState {
             cursor: Cell::new(0),
             text: RefCell::new(vec![]),
             action: Cell::new(None),
-            errors: Cell::new(0)
+            errors: Cell::new(0),
+            start_time: Cell::new(Instant::now())
         };
         st.generate_text();
         st
@@ -95,48 +98,47 @@ impl State for MainViewState {
         if let Some(action) = self.action.get() {
             match action {
                 Action::KeyPressed(key) => {
-                    //if let Some(button_count_text) = context.widget().try_get_mut::<Text>() {
-                        context
-                            .child_by_id("speed")
-                            .unwrap()
-                            .get_mut::<Text>()
-                            .0 = String16::from(format!("Speed: {} cpm", 10));
+                    context
+                        .child_by_id("speed")
+                        .unwrap()
+                        .get_mut::<Text>()
+                        .0 = String16::from(format!("Speed: {:.1} cpm", self.cursor.get() as f64 / (self.start_time.get().elapsed().as_secs() as f64 / 60.0)));
 
-                        context
-                            .child_by_id("errors")
-                            .unwrap()
-                            .get_mut::<Text>()
-                            .0 = String16::from(format!("Speed: {} cpm", self.errors.get()));
+                    context
+                        .child_by_id("errors")
+                        .unwrap()
+                        .get_mut::<Text>()
+                        .0 = String16::from(format!("Speed: {} cpm", self.errors.get()));
 
-                        let len = self.text.borrow().len();
-                        //let text = self.text.borrow();
-                        let cursor = self.cursor.get();
-                        let text = self.text.clone().into_inner().clone();
-                        let actual_char = text.get(cursor).unwrap_or(&KeyLetter::default()).character.clone();
-                        let correct = actual_char == key;
-                        println!("correct1");
-                        //self.text.borrow_mut().remove(0);
-                        //context.child_by_id("items").unwrap().set(Count(len - 1));
-                        //if let Some(key) = self.text.into_inner().get(cursor){
-                        if cursor >= text.len()-1{
-                            self.generate_text();
-                            self.cursor.set(0);
-                        } else{
-                            self.text.borrow_mut()[cursor] = KeyLetter::new(actual_char, if correct { Pressed::Pressed} else {Pressed::WrongPressed});
+                    let len = self.text.borrow().len();
 
-                            if correct {
-                                self.cursor.set(cursor + 1);
-                            } else {
+                    let cursor = self.cursor.get();
+                    let text = self.text.clone().into_inner().clone();
+                    let actual_char = text.get(cursor).unwrap_or(&KeyLetter::default()).character.clone();
+                    let correct = actual_char == key;
+
+                    if cursor >= text.len()-1{
+                        self.generate_text();
+                        self.start_time.set(Instant::now());
+                        self.cursor.set(0);
+                    } else{
+                        if !correct{
+                            if text[cursor].pressed == Pressed::NotPressed {
                                 self.errors.set(self.errors.get() + 1);
                             }
                         }
 
-                        context.child_by_id("items").unwrap().set(StyledText(self.get_styled_text()));
-                            //text.drain(0..1);
-                        //}
+                        self.text.borrow_mut()[cursor] =
+                            KeyLetter::new(actual_char, if correct { Pressed::Pressed} else {Pressed::WrongPressed});
 
+                        if correct {
+                            self.cursor.set(cursor + 1);
+                        }
                     }
-                //}
+
+                    context.child_by_id("items").unwrap().set(StyledText(self.get_styled_text()));
+
+                }
             }
 
             self.action.set(None);
