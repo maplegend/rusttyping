@@ -13,8 +13,11 @@ use rand::distributions::Alphanumeric;
 mod text_generator;
 use text_generator::TextGenerator;
 
+mod styled_text;
+use crate::styled_text::*;
 mod styled_text_box;
-use styled_text_box::STextWidgetState;
+use styled_text_box::STextWidget;
+use crate::Action::KeyPressed;
 
 #[derive(Debug, Copy, Clone)]
 enum Action {
@@ -72,6 +75,13 @@ impl MainViewState {
     fn action(&self, action: impl Into<Option<Action>>) {
         self.action.set(action.into());
     }
+    fn get_styled_text(&self) -> Vec<Letter>{
+        self.text.clone().into_inner().iter().map(|kl| Letter::new(kl.character, (match kl.pressed {
+            Pressed::Pressed => "pressed",
+            Pressed::NotPressed => "not_pressed",
+            Pressed::WrongPressed => "wrong_pressed"
+        }).to_string())).collect()
+    }
 }
 
 impl State for MainViewState {
@@ -98,7 +108,7 @@ impl State for MainViewState {
                             self.cursor.set(cursor + 1);
                         }
 
-                        context.child_by_id("items").unwrap().set(Count(len-(cursor+1)%2));
+                        context.child_by_id("items").unwrap().set(StyledText(self.get_styled_text()));
                             //text.drain(0..1);
                         //}
 
@@ -120,7 +130,8 @@ fn create_header(context: &mut BuildContext, text: &str) -> Entity {
 
 widget!(
     MainView<MainViewState>: KeyDownHandler {
-        count_text: Text
+        count_text: Text,
+        text: StyledText
     }
 );
 
@@ -129,7 +140,7 @@ impl Template for MainView {
         let state = self.clone_state();
         let text_state = self.clone_state();
         let text_len = text_state.text.borrow().len();
-        self.name("MainView").count_text("123").child(
+        self.name("MainView").text(state.get_styled_text()).count_text("123").child(
             Grid::create()
                 .margin(8.0)
                 .columns(
@@ -155,25 +166,13 @@ impl Template for MainView {
                                 .build(context),
                         )
                         .child(
-                            ItemsWidget::create()
+                            STextWidget::create()
                                 .selector(Selector::from("items-widget").id("items"))
                                 .padding((4.0, 4.0, 4.0, 2.0))
                                 .margin((0.0, 8.0, 0.0, 8.0))
                                 .border_thickness(BorderThickness::from(0.0))
                                 .orientation(OrientationValue::Horizontal)
-                                .items_builder(move |bc, index| {
-                                    let key: &KeyLetter = &text_state.text.borrow()[index];
-                                    TextBlock::create()
-                                        .selector(Selector::from("item").id(match key.pressed {
-                                            Pressed::Pressed => "pressed",
-                                            Pressed::NotPressed => "not_pressed",
-                                            Pressed::WrongPressed => "wrong_pressed"
-                                        }))
-                                        .text(key.character.to_string())
-                                        .font_size(20.0)
-                                        .build(bc)
-                                })
-                                .items_count(text_len)
+                                .styled_text(id)
                                 .build(context),
                         )
                         .build(context),
@@ -193,7 +192,7 @@ fn main() {
     Application::new()
         .window(|ctx| {
             Window::create()
-                .title("OrbTk - widgets example")
+                .title("RTyping")
                 .position((100.0, 100.0))
                 .size(468.0, 730.0)
                 .theme(

@@ -2,15 +2,10 @@ use std::cell::Cell;
 
 use orbtk::prelude::*;
 
-struct Letter{
-    character: char,
-    id: String
-}
+use crate::styled_text::*;
 
 #[derive(Default)]
-pub struct STextWidgetState {
-    text: Vec<Letter>
-}
+pub struct STextWidgetState;
 
 impl Into<Rc<dyn State>> for STextWidgetState {
     fn into(self) -> Rc<dyn State> {
@@ -22,11 +17,13 @@ impl State for STextWidgetState {
     fn update(&self, context: &mut Context<'_>) {
         if let Some(items_panel) = context.entity_of_child("items_panel") {
             context.clear_children_of(items_panel);
+
+            let text = context.widget().clone_or_default::<StyledText>().0;
             let mut build_context = context.build_context();
 
-            for i in 0..self.text.len() {
-                let letter = &self.text[i];
-                let character = TextBox::create()
+            for i in 0..text.len() {
+                let letter = &text[i];
+                let character = TextBlock::create()
                     .selector(Selector::from("item").id(&letter.id))
                     .text(letter.character.to_string())
                     .font_size(20.0)
@@ -60,8 +57,7 @@ widget!(
         /// Sets or shares the orientation property.
         orientation: Orientation,
 
-        /// Sets or shared the items_count.
-        items_count: Count,
+        styled_text: StyledText,
 
         /// Sets or shares the css selector property.
         selector: Selector
