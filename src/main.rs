@@ -1,16 +1,13 @@
 extern crate orbtk;
 extern crate dces;
+extern crate serde;
+extern crate serde_json;
 use std::cell::{Cell, RefCell};
-use std::time::{Duration, Instant};
 
 use orbtk::{
     prelude::*,
-    shell::{Key, KeyEvent},
+    shell::KeyEvent,
 };
-
-use std::iter;
-use rand::{Rng, thread_rng};
-use rand::distributions::Alphanumeric;
 
 //mod attributed_text_layout;
 mod attributed_text;
@@ -24,10 +21,6 @@ mod typing_statistic;
 use typing_statistic::*;
 
 use crate::attributed_text_block::*;
-use crate::attributed_text_renderer::*;
-
-use crate::Action::KeyPressed;
-use std::borrow::BorrowMut;
 
 #[derive(Debug, Copy, Clone)]
 enum Action {
@@ -69,7 +62,6 @@ pub struct MainViewState {
 
 impl Default for MainViewState {
     fn default() -> Self {
-        let mut rng = thread_rng();
         let st = MainViewState {
             text_gen: TextGenerator::new(include_str!("../res/words_filtered.txt")),
             statistic: RefCell::new(TypingStatistic::new()),
@@ -84,7 +76,7 @@ impl Default for MainViewState {
 
 impl MainViewState {
     fn generate_text(&self){
-        self.text.replace(self.text_gen.generate(&vec!['1'], 5).join(" ")
+        self.text.replace(self.text_gen.generate(&vec!['1'], 20).join(" ")
             .chars().map(|c| KeyLetter::new(c, Pressed::NotPressed)).collect());
     }
     fn action(&self, action: impl Into<Option<Action>>) {
@@ -113,27 +105,12 @@ impl State for MainViewState {
                         statistic.start_sample();
                     }
 
-                    let current_stat = statistic.get_current_state();
-                    context
-                        .child_by_id("speed")
-                        .unwrap()
-                        .get_mut::<Text>()
-                        .0 = String16::from(format!("Speed: {:.1} cpm", current_stat.speed));
-
-                    context
-                        .child_by_id("errors")
-                        .unwrap()
-                        .get_mut::<Text>()
-                        .0 = String16::from(format!("Error: {}",  current_stat.errors));
-
-                    let len = self.text.borrow().len();
-
                     let cursor = self.cursor.get();
                     let text = self.text.clone().into_inner().clone();
                     let actual_char = text.get(cursor).unwrap_or(&KeyLetter::default()).character.clone();
                     let correct = actual_char == key;
 
-                    if cursor >= text.len()-1{
+                    if cursor >= text.len(){
                         self.generate_text();
                         self.cursor.set(0);
                         statistic.finish_sample();
@@ -153,8 +130,20 @@ impl State for MainViewState {
                         }
                     }
 
-                    //context.child_by_id("items").unwrap().set(StyledText(self.get_styled_text()));
                     context.child_by_id("main_text").unwrap().set(AttributedText(self.get_styled_text()));
+
+                    let current_stat = statistic.get_current_state();
+                    context
+                        .child_by_id("speed")
+                        .unwrap()
+                        .get_mut::<Text>()
+                        .0 = String16::from(format!("Speed: {:.1} cpm", current_stat.speed.min(1000.0)));
+
+                    context
+                        .child_by_id("errors")
+                        .unwrap()
+                        .get_mut::<Text>()
+                        .0 = String16::from(format!("Error: {}",  current_stat.errors));
                 }
             }
 
@@ -162,14 +151,6 @@ impl State for MainViewState {
         }
     }
 }
-
-fn create_header(context: &mut BuildContext, text: &str) -> Entity {
-    TextBlock::create()
-        .text(text)
-        .selector(SelectorValue::new().with("text-block").class("h1"))
-        .build(context)
-}
-
 widget!(
     MainView<MainViewState>: KeyDownHandler {
         text: AttributedText
@@ -179,11 +160,9 @@ widget!(
 impl Template for MainView {
     fn template(self, id: Entity, context: &mut BuildContext) -> Self {
         let state = self.clone_state();
-        let text_state = self.clone_state();
-        let text_len = text_state.text.borrow().len();
         self.name("MainView").text(state.get_styled_text()).child(
                     Stack::create()
-                        .child(create_header(context, "Text"))
+                        .margin((10.0, 10.0, 10.0, 10.0))
                         .child(
                             TextBlock::create()
                                 .selector(SelectorValue::new().id("speed"))
@@ -223,7 +202,7 @@ fn main() {
             Window::create()
                 .title("RTyping")
                 .position((100.0, 100.0))
-                .size(468.0, 730.0)
+                .size(730.0, 400.0)
                 .theme(
                     ThemeValue::create()
                         .extension_css(include_str!("../res/style.css"))

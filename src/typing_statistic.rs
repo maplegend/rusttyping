@@ -1,6 +1,9 @@
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use std::collections::HashMap;
+use serde::{Deserialize, Serialize};
+use serde_json::Result;
 
+//#[derive(Serialize, Deserialize)]
 struct SampleStatistic{
     start_time: Instant,
     key_timings: HashMap<char, Vec<usize>>,
@@ -77,7 +80,7 @@ impl TypingStatistic{
     pub fn key_pressed(&mut self, key: char, correct: bool){
         let time = self.start_key.elapsed().as_millis();
         if correct {
-            let mut timings = self.key_timings.entry(key).or_insert(vec![]);
+            let timings = self.key_timings.entry(key).or_insert(vec![]);
             timings.push(time as usize);
             self.key_count += 1;
         } else{
@@ -87,7 +90,7 @@ impl TypingStatistic{
         }
     }
 
-    pub fn finish_sample(&mut self){
+    pub fn finish_sample(&mut self) {
         self.samples.push(
             SampleStatistic::new(
                 self.start_sample,

@@ -1,7 +1,6 @@
 use orbtk::prelude::*;
 use crate::attributed_text_renderer::*;
 use crate::attributed_text_layout::*;
-use crate::attributed_text::*;
 use crate::attributed_text::attributed_text::*;
 
 widget!(

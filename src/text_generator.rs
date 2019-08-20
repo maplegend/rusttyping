@@ -1,6 +1,4 @@
-use rand::prelude::*;
-use std::fs::File;
-use std::io::prelude::*;
+use rand::Rng;
 
 pub struct TextGenerator{
     words: Vec<String>
@@ -18,7 +16,7 @@ impl TextGenerator{
 
     pub fn generate(&self, chars: &Vec<char>, len: usize) -> Vec<String>{
         let mut res: Vec<String> = vec![];
-        for i in 0..len{
+        for _i in 0..len{
             let mut rng = rand::thread_rng();
             let word = rng.gen_range(0, self.words.len());
             res.push(self.words[word].clone());

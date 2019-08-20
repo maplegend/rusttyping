@@ -5,7 +5,7 @@ use std::{
 };
 
 use dces::prelude::Entity;
-use orbtk::{prelude::*, render::RenderContext2D, tree::Tree, utils::prelude::*};
+use orbtk::{prelude::*, render::RenderContext2D, tree::Tree};
 use orbtk::Layout;
 
 use crate::attributed_text::attributed_text::*;
@@ -130,13 +130,14 @@ impl Layout for AttributedTextLayout {
         if !self.desired_size.borrow().dirty() {
             return self.desired_size.borrow().size();
         }
-        println!("parent size {:?} desired size {:?}", _parent_size, self.desired_size.borrow().width());
+        println!("parent size {:?} desired size {} {}", _parent_size, self.desired_size.borrow().width(), self.desired_size.borrow().height());
+        println!("calculated lines {} ", (self.desired_size.borrow().width()/_parent_size.0));
         if let Ok(bounds) = ecm
             .component_store_mut()
             .borrow_mut_component::<Bounds>(entity)
         {
             bounds.set_width(self.desired_size.borrow().width().min(_parent_size.0));
-            bounds.set_height(self.desired_size.borrow().height()*(self.desired_size.borrow().width()/_parent_size.1).ceil());
+            bounds.set_height(self.desired_size.borrow().height()*(self.desired_size.borrow().width()/_parent_size.0).ceil());
         }
 
         if ecm.entity_store().children[&entity].len() > 0 {
