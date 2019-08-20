@@ -9,3 +9,4 @@ edition = "2018"
 [dependencies]
 orbtk = { git = "https://gitlab.redox-os.org/redox-os/orbtk.git" }
 rand = "*"
+dces = { git = "https://gitlab.redox-os.org/redox-os/dces-rust.git" }

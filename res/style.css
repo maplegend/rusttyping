@@ -1,3 +1,7 @@
+container.content {
+    background: #fafafa;
+}
+
 #pressed {
     color: green;
 }

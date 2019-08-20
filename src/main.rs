@@ -1,4 +1,5 @@
 extern crate orbtk;
+extern crate dces;
 use std::cell::{Cell, RefCell};
 use std::time::{Duration, Instant};
 
@@ -11,13 +12,19 @@ use std::iter;
 use rand::{Rng, thread_rng};
 use rand::distributions::Alphanumeric;
 
+//mod attributed_text_layout;
+mod attributed_text;
+use crate::attributed_text::*;
+use crate::attributed_text::attributed_text::*;
+
 mod text_generator;
 use text_generator::TextGenerator;
 
-mod styled_text;
-use crate::styled_text::*;
-mod styled_text_box;
-use styled_text_box::STextWidget;
+//mod attributed_text_block;
+use crate::attributed_text_block::*;
+//mod attributed_text_renderer;
+use crate::attributed_text_renderer::*;
+
 use crate::Action::KeyPressed;
 use std::borrow::BorrowMut;
 
@@ -84,12 +91,12 @@ impl MainViewState {
     fn action(&self, action: impl Into<Option<Action>>) {
         self.action.set(action.into());
     }
-    fn get_styled_text(&self) -> Vec<Letter>{
-        self.text.clone().into_inner().iter().map(|kl| Letter::new(if kl.character == ' ' {'_'} else {kl.character}, (match kl.pressed {
-            Pressed::Pressed => "pressed",
-            Pressed::NotPressed => "not_pressed",
-            Pressed::WrongPressed => "wrong_pressed"
-        }).to_string())).collect()
+    fn get_styled_text(&self) -> Vec<AttributedLetter>{
+        self.text.clone().into_inner().iter().map(|kl| AttributedLetter::new(if kl.character == ' ' {'_'} else {kl.character}, (match kl.pressed {
+            Pressed::Pressed => "#239B56",
+            Pressed::NotPressed => "#E5E7E9",
+            Pressed::WrongPressed => "#E74C3C"
+        }).into())).collect()
     }
 }
 
@@ -108,7 +115,7 @@ impl State for MainViewState {
                         .child_by_id("errors")
                         .unwrap()
                         .get_mut::<Text>()
-                        .0 = String16::from(format!("Speed: {} cpm", self.errors.get()));
+                        .0 = String16::from(format!("Error: {}", self.errors.get()));
 
                     let len = self.text.borrow().len();
 
@@ -121,6 +128,7 @@ impl State for MainViewState {
                         self.generate_text();
                         self.start_time.set(Instant::now());
                         self.cursor.set(0);
+                        self.errors.set(0);
                     } else{
                         if !correct{
                             if text[cursor].pressed == Pressed::NotPressed {
@@ -136,8 +144,8 @@ impl State for MainViewState {
                         }
                     }
 
-                    context.child_by_id("items").unwrap().set(StyledText(self.get_styled_text()));
-
+                    //context.child_by_id("items").unwrap().set(StyledText(self.get_styled_text()));
+                    context.child_by_id("main_text").unwrap().set(AttributedText(self.get_styled_text()));
                 }
             }
 
@@ -155,7 +163,7 @@ fn create_header(context: &mut BuildContext, text: &str) -> Entity {
 
 widget!(
     MainView<MainViewState>: KeyDownHandler {
-        text: StyledText
+        text: AttributedText
     }
 );
 
@@ -165,50 +173,31 @@ impl Template for MainView {
         let text_state = self.clone_state();
         let text_len = text_state.text.borrow().len();
         self.name("MainView").text(state.get_styled_text()).child(
-            Grid::create()
-                .margin(8.0)
-                .columns(
-                    Columns::create()
-                        .column("Auto")
-                        .column(16.0)
-                        .column("Auto")
-                        .column(16.0)
-                        .column("Auto")
-                        .build(),
-                )
-                .child(
                     Stack::create()
-                        .attach(GridColumn(2))
                         .child(create_header(context, "Text"))
                         .child(
                             TextBlock::create()
                                 .selector(SelectorValue::new().id("speed"))
                                 .text("Speed: 0 cpm")
                                 .margin((0.0, 8.0, 0.0, 0.0))
-                                .attach(GridColumn(2))
-                                .attach(GridRow(1))
                                 .build(context),
                         )
                         .child(
                             TextBlock::create()
                                 .selector(SelectorValue::new().id("errors"))
-                                .text("Errors: 0 cpm")
+                                .text("Errors: 0")
                                 .margin((0.0, 8.0, 0.0, 0.0))
-                                .attach(GridColumn(2))
-                                .attach(GridRow(1))
                                 .build(context),
                         )
                         .child(
-                            STextWidget::create()
-                                .selector(Selector::from("items-widget").id("items"))
-                                //.padding((4.0, 4.0, 4.0, 2.0))
-                                .border_thickness(BorderThickness::from(0.0))
-                                .styled_text(id)
+                            AttributedTextBlock::create()
+                                .selector(SelectorValue::new().id("main_text"))
+                                .text(id)
+                                .font_size(20.0)
+                                .margin((0.0, 8.0, 0.0, 0.0))
                                 .build(context),
                         )
-                        .build(context),
-                )
-                .build(context),
+                        .build(context)
         ).on_key_down(move |event: KeyEvent| -> bool {
             state.action(Action::KeyPressed(event.text.chars().next().unwrap_or_default()));
             true
