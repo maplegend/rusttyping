@@ -20,9 +20,10 @@ use crate::attributed_text::attributed_text::*;
 mod text_generator;
 use text_generator::TextGenerator;
 
-//mod attributed_text_block;
+mod typing_statistic;
+use typing_statistic::*;
+
 use crate::attributed_text_block::*;
-//mod attributed_text_renderer;
 use crate::attributed_text_renderer::*;
 
 use crate::Action::KeyPressed;
@@ -60,11 +61,10 @@ impl KeyLetter{
 
 pub struct MainViewState {
     text_gen: TextGenerator,
+    statistic: RefCell<TypingStatistic>,
     cursor: Cell<usize>,
     text: RefCell<Vec<KeyLetter>>,
     action: Cell<Option<Action>>,
-    errors: Cell<usize>,
-    start_time: Cell<Instant>,
 }
 
 impl Default for MainViewState {
@@ -72,11 +72,10 @@ impl Default for MainViewState {
         let mut rng = thread_rng();
         let st = MainViewState {
             text_gen: TextGenerator::new(include_str!("../res/words_filtered.txt")),
+            statistic: RefCell::new(TypingStatistic::new()),
             cursor: Cell::new(0),
             text: RefCell::new(vec![]),
             action: Cell::new(None),
-            errors: Cell::new(0),
-            start_time: Cell::new(Instant::now())
         };
         st.generate_text();
         st
@@ -92,11 +91,15 @@ impl MainViewState {
         self.action.set(action.into());
     }
     fn get_styled_text(&self) -> Vec<AttributedLetter>{
-        self.text.clone().into_inner().iter().map(|kl| AttributedLetter::new(if kl.character == ' ' {'_'} else {kl.character}, (match kl.pressed {
-            Pressed::Pressed => "#239B56",
-            Pressed::NotPressed => "#E5E7E9",
-            Pressed::WrongPressed => "#E74C3C"
-        }).into())).collect()
+        self.text.clone().into_inner().iter()
+            .map(|kl| AttributedLetter::new(
+                if kl.character == ' ' {'_'} else {kl.character},
+                (match kl.pressed {
+                    Pressed::Pressed => "#239B56",
+                    Pressed::NotPressed => "#E5E7E9",
+                    Pressed::WrongPressed => "#E74C3C"
+                }).into())
+            ).collect()
     }
 }
 
@@ -105,17 +108,23 @@ impl State for MainViewState {
         if let Some(action) = self.action.get() {
             match action {
                 Action::KeyPressed(key) => {
+                    let mut statistic = self.statistic.borrow_mut();
+                    if statistic.is_finished(){
+                        statistic.start_sample();
+                    }
+
+                    let current_stat = statistic.get_current_state();
                     context
                         .child_by_id("speed")
                         .unwrap()
                         .get_mut::<Text>()
-                        .0 = String16::from(format!("Speed: {:.1} cpm", self.cursor.get() as f64 / (self.start_time.get().elapsed().as_secs() as f64 / 60.0)));
+                        .0 = String16::from(format!("Speed: {:.1} cpm", current_stat.speed));
 
                     context
                         .child_by_id("errors")
                         .unwrap()
                         .get_mut::<Text>()
-                        .0 = String16::from(format!("Error: {}", self.errors.get()));
+                        .0 = String16::from(format!("Error: {}",  current_stat.errors));
 
                     let len = self.text.borrow().len();
 
@@ -126,13 +135,12 @@ impl State for MainViewState {
 
                     if cursor >= text.len()-1{
                         self.generate_text();
-                        self.start_time.set(Instant::now());
                         self.cursor.set(0);
-                        self.errors.set(0);
+                        statistic.finish_sample();
                     } else{
                         if !correct{
                             if text[cursor].pressed == Pressed::NotPressed {
-                                self.errors.set(self.errors.get() + 1);
+                                statistic.key_pressed(key, false);
                             }
                         }
 
@@ -141,6 +149,7 @@ impl State for MainViewState {
 
                         if correct {
                             self.cursor.set(cursor + 1);
+                            statistic.key_pressed(key, true);
                         }
                     }
 
